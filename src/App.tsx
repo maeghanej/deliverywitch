@@ -11,6 +11,7 @@ import { useDeliveryStore } from './features/delivery/stores/deliveryStore'
 import { useLocationEventStore } from './features/location/stores/locationEventStore'
 import { getTestLocations } from './features/game/stores/gameStore'
 import { useGeolocation } from './features/location/hooks/useGeolocation'
+import { InventoryPanel } from './features/inventory/components/InventoryPanel'
 
 function App() {
   const { isTracking, startTracking, stopTracking } = useLocationStore();
@@ -78,6 +79,9 @@ function App() {
             
             {/* Movement Validation */}
             {mode && <MovementValidation />}
+
+            {/* Inventory Panel */}
+            <InventoryPanel />
             
             {/* Only show tracking button if transport mode is selected and we have coordinates */}
             {mode && coordinates && (

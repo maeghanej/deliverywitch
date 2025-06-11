@@ -3,6 +3,7 @@ import { calculateDistance } from '../../delivery/utils/distance';
 import type { Coordinates } from '../../delivery/utils/distance';
 import { useDeliveryStore } from '../../delivery/stores/deliveryStore';
 import { DeliveryStatus } from '../../delivery/types';
+import { calculateDeliveryReward } from '../../delivery/utils/rewards';
 import {
   LocationType,
   ProximityEventType,
@@ -14,6 +15,7 @@ import type {
   LocationInteraction,
   InteractionResult
 } from '../types/LocationEvents';
+import { useInventoryStore } from '../../inventory/stores/inventoryStore';
 
 interface LocationEventState {
   activeLocations: LocationPoint[];
@@ -40,6 +42,7 @@ const DEFAULT_INTERACTION_RADIUS = 20; // meters
 // Helper function to handle location interactions
 async function handleLocationInteraction(location: LocationPoint): Promise<InteractionResult> {
   const deliveryStore = useDeliveryStore.getState();
+  const inventoryStore = useInventoryStore.getState();
   const activeDelivery = deliveryStore.activeDelivery;
 
   switch (location.type) {
@@ -58,12 +61,22 @@ async function handleLocationInteraction(location: LocationPoint): Promise<Inter
         };
       }
 
+      // Add item to inventory
+      inventoryStore.addItem({
+        id: activeDelivery.id,
+        name: activeDelivery.item.name,
+        value: activeDelivery.reward,
+        origin: location.id,
+        destination: activeDelivery.dropoffLocation.id,
+        pickupTime: Date.now()
+      });
+
       // Update delivery status
       deliveryStore.updateDeliveryStatus(activeDelivery.id, DeliveryStatus.PICKED_UP);
 
       return {
         success: true,
-        message: `Picked up delivery from ${location.name}`,
+        message: `Picked up ${activeDelivery.item.name} from ${location.name}`,
         nextLocationId: activeDelivery.dropoffLocation.id
       };
     
@@ -82,15 +95,35 @@ async function handleLocationInteraction(location: LocationPoint): Promise<Inter
         };
       }
 
+      // Check if we have the item in inventory
+      const deliveryItem = inventoryStore.items.find(item => item.id === activeDelivery.id);
+      if (!deliveryItem) {
+        return {
+          success: false,
+          message: 'You don\'t have the delivery item in your inventory'
+        };
+      }
+
+      // Calculate final reward based on time and distance
+      const finalReward = calculateDeliveryReward(
+        deliveryItem.pickupTime!,
+        activeDelivery.pickupLocation.coordinates,
+        activeDelivery.dropoffLocation.coordinates,
+        deliveryItem.value
+      );
+
+      // Remove item from inventory
+      inventoryStore.removeItem(deliveryItem.id);
+
       // Complete the delivery
       deliveryStore.updateDeliveryStatus(activeDelivery.id, DeliveryStatus.COMPLETED);
 
       return {
         success: true,
-        message: `Delivered to ${location.name}`,
+        message: `Delivered ${activeDelivery.item.name} to ${location.name}`,
         rewards: [
           { type: RewardType.EXPERIENCE, amount: 100, description: 'Delivery completed' },
-          { type: RewardType.COINS, amount: activeDelivery.reward, description: 'Delivery fee' }
+          { type: RewardType.COINS, amount: finalReward, description: 'Delivery fee (includes time and distance bonus)' }
         ]
       };
     
