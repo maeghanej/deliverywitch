@@ -55,7 +55,7 @@ export const NearbyLocations = () => {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-sm">
+    <div className="fixed bottom-4 left-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-sm z-20">
       <h3 className="text-lg font-semibold mb-2">Nearby Locations</h3>
       <div className="space-y-2">
         {nearbyLocations.map(location => {

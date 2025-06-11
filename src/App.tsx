@@ -89,7 +89,7 @@ function App() {
                 onClick={() => isTracking ? stopTracking() : handleStartTracking()}
                 className={`
                   fixed bottom-8 right-8 
-                  z-10 p-4 rounded-full 
+                  z-20 p-4 rounded-full 
                   shadow-lg transition-colors
                   ${isTracking 
                     ? 'bg-red-500 hover:bg-red-600' 

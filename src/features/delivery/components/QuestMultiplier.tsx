@@ -7,7 +7,7 @@ export const QuestMultiplier = () => {
   const { streak } = multiplierInfo;
 
   return (
-    <div className="fixed top-20 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 max-w-xs">
+    <div className="fixed top-20 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 max-w-xs z-20">
       {/* Header with total multiplier */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">

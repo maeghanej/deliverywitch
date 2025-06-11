@@ -87,6 +87,16 @@ const TEST_LOCATIONS: LocationPoint[] = [
     name: 'Elder Witch',
     description: 'A wise witch who offers guidance and quests',
     isActive: true
+  },
+  {
+    id: 'quest_1',
+    type: LocationType.QUEST,
+    coordinates: { latitude: 0, longitude: 0 }, // Will be set dynamically
+    radius: 40,
+    name: 'Quest Board',
+    description: 'A magical bulletin board with various delivery requests',
+    isActive: true,
+    icon: '❗'
   }
 ];
 

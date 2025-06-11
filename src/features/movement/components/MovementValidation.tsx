@@ -11,7 +11,7 @@ export const MovementValidation = () => {
   const warningIssues = validationResult.issues.filter(issue => issue.severity === 'WARNING');
 
   return (
-    <div className="fixed bottom-24 left-4 max-w-sm">
+    <div className="fixed bottom-24 left-4 max-w-sm z-20">
       {/* Movement Status Indicator */}
       <div className={`
         mb-2 px-4 py-2 rounded-lg shadow-lg

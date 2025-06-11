@@ -30,7 +30,7 @@ export const ActiveDelivery = () => {
   };
 
   return (
-    <div className="fixed bottom-24 left-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+    <div className="fixed bottom-24 left-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 z-20">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           {activeDelivery.item.name}

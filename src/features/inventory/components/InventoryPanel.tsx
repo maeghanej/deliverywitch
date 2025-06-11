@@ -17,7 +17,7 @@ export const InventoryPanel = () => {
 
   return (
     <Paper
-      className="fixed top-20 right-4 p-4 z-10 max-w-sm"
+      className="fixed top-20 right-4 p-4 z-20 max-w-sm"
       shadow="md"
       radius="md"
     >
