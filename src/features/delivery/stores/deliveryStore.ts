@@ -30,33 +30,37 @@ interface DeliveryState {
   generateNewQuests: (playerLocation: Location, transportMode: TransportMode) => void;
 }
 
-// Helper function to serialize dates in objects
-const serializeDates = (obj: any): any => {
+// Helper function to serialize dates for storage
+function serializeDates<T>(obj: T): T {
   if (!obj) return obj;
-  const newObj = { ...obj };
-  for (const key in newObj) {
-    if (newObj[key] instanceof Date) {
-      newObj[key] = newObj[key].toISOString();
-    } else if (typeof newObj[key] === 'object') {
+  if (obj instanceof Date) return obj.toISOString() as any;
+  if (Array.isArray(obj)) return obj.map(serializeDates) as any;
+  if (typeof obj === 'object') {
+    const newObj = { ...obj };
+    for (const key in newObj) {
       newObj[key] = serializeDates(newObj[key]);
     }
+    return newObj;
   }
-  return newObj;
-};
+  return obj;
+}
 
-// Helper function to deserialize dates in objects
-const deserializeDates = (obj: any): any => {
+// Helper function to deserialize dates from storage
+function deserializeDates<T>(obj: T): T {
   if (!obj) return obj;
-  const newObj = { ...obj };
-  for (const key in newObj) {
-    if (typeof newObj[key] === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(newObj[key])) {
-      newObj[key] = new Date(newObj[key]);
-    } else if (typeof newObj[key] === 'object') {
+  if (typeof obj === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(obj)) {
+    return new Date(obj) as any;
+  }
+  if (Array.isArray(obj)) return obj.map(deserializeDates) as any;
+  if (typeof obj === 'object') {
+    const newObj = { ...obj };
+    for (const key in newObj) {
       newObj[key] = deserializeDates(newObj[key]);
     }
+    return newObj;
   }
-  return newObj;
-};
+  return obj;
+}
 
 export const useDeliveryStore = create<DeliveryState>()(
   devtools(
@@ -121,90 +125,39 @@ export const useDeliveryStore = create<DeliveryState>()(
         }),
 
         failQuest: (questId: string) => set(state => {
-          const quest = state.activeQuest;
-          if (!quest || quest.id !== questId) return state;
-
-          return {
-            activeQuest: null,
-            completedQuests: [...state.completedQuests, {
-              ...quest,
-              status: QuestStatus.COMPLETED, // We removed FAILED status
-              completedAt: new Date()
-            }]
-          };
+          if (!state.activeQuest || state.activeQuest.id !== questId) return state;
+          return { activeQuest: null };
         }),
 
         acceptDelivery: (delivery: Delivery) => set({
           activeDelivery: {
             ...delivery,
-            status: DeliveryStatus.ACCEPTED,
-            timeStarted: new Date()
-          },
-          deliveryProgress: {
-            currentDistance: 0,
-            totalDistance: delivery.distance,
-            startTime: new Date(),
-            lastUpdateTime: new Date(),
-            averageSpeed: 0
+            status: DeliveryStatus.ACCEPTED
           }
         }),
 
-        updateDeliveryStatus: (deliveryId: string, status: DeliveryStatus) => 
-          set(state => {
-            if (!state.activeDelivery || state.activeDelivery.id !== deliveryId) {
-              return state;
+        updateDeliveryStatus: (deliveryId: string, status: DeliveryStatus) => set(state => {
+          if (!state.activeDelivery || state.activeDelivery.id !== deliveryId) return state;
+          return {
+            activeDelivery: {
+              ...state.activeDelivery,
+              status
             }
-
-            return {
-              activeDelivery: {
-                ...state.activeDelivery,
-                status,
-                ...(status === DeliveryStatus.COMPLETED ? { timeCompleted: new Date() } : {})
-              }
-            };
-          }),
+          };
+        }),
 
         updateDeliveryProgress: (currentLocation: Location) => set(state => {
-          if (!state.activeDelivery || !state.deliveryProgress) return state;
+          if (!state.activeDelivery) return state;
 
-          const delivery = state.activeDelivery;
-          const progress = state.deliveryProgress;
-          const now = new Date();
-
-          // Calculate new distance based on delivery status
-          let newDistance = 0;
-          if (delivery.status === DeliveryStatus.ACCEPTED) {
-            newDistance = calculateDistance(
-              currentLocation.coordinates,
-              delivery.pickupLocation.coordinates
-            );
-          } else if (delivery.status === DeliveryStatus.PICKED_UP) {
-            newDistance = calculateDistance(
-              currentLocation.coordinates,
-              delivery.dropoffLocation.coordinates
-            );
-          }
-
-          // Calculate average speed
-          const timeElapsed = (now.getTime() - progress.lastUpdateTime.getTime()) / 1000; // in seconds
-          const distanceDelta = Math.abs(newDistance - progress.currentDistance);
-          const currentSpeed = timeElapsed > 0 ? distanceDelta / timeElapsed : 0;
-          const averageSpeed = (progress.averageSpeed + currentSpeed) / 2;
-
-          // Estimate remaining time
-          const remainingDistance = delivery.distance - newDistance;
-          const estimatedTimeRemaining = averageSpeed > 0 
-            ? remainingDistance / averageSpeed 
-            : undefined;
+          const { pickupLocation, dropoffLocation } = state.activeDelivery;
+          const toPickup = calculateDistance(currentLocation.coordinates, pickupLocation.coordinates);
+          const toDropoff = calculateDistance(currentLocation.coordinates, dropoffLocation.coordinates);
 
           return {
             deliveryProgress: {
-              currentDistance: newDistance,
-              totalDistance: delivery.distance,
-              estimatedTimeRemaining,
-              startTime: progress.startTime,
-              lastUpdateTime: now,
-              averageSpeed
+              distanceToPickup: toPickup,
+              distanceToDropoff: toDropoff,
+              lastUpdated: new Date()
             }
           };
         }),
@@ -213,8 +166,13 @@ export const useDeliveryStore = create<DeliveryState>()(
           if (!transportMode) return;
           
           const newQuests = generateQuests(playerLocation, transportMode);
+          if (!Array.isArray(newQuests)) {
+            console.error('Failed to generate quests:', newQuests);
+            return;
+          }
+
           set(state => ({
-            availableQuests: [...state.availableQuests, ...newQuests]
+            availableQuests: [...(Array.isArray(state.availableQuests) ? state.availableQuests : []), ...newQuests]
           }));
         }
       }),
@@ -232,8 +190,8 @@ export const useDeliveryStore = create<DeliveryState>()(
         onRehydrateStorage: () => (state) => {
           if (state) {
             state.activeQuest = deserializeDates(state.activeQuest);
-            state.availableQuests = deserializeDates(state.availableQuests);
-            state.completedQuests = deserializeDates(state.completedQuests);
+            state.availableQuests = deserializeDates(state.availableQuests) || [];
+            state.completedQuests = deserializeDates(state.completedQuests) || [];
             state.activeDelivery = deserializeDates(state.activeDelivery);
             state.deliveryProgress = deserializeDates(state.deliveryProgress);
           }

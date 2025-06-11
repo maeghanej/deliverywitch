@@ -35,7 +35,8 @@ export const DeliveryStatus = {
   AVAILABLE: 'AVAILABLE',
   ACCEPTED: 'ACCEPTED',
   PICKED_UP: 'PICKED_UP',
-  COMPLETED: 'COMPLETED'
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED'
 } as const;
 
 export type DeliveryStatus = typeof DeliveryStatus[keyof typeof DeliveryStatus];
@@ -49,10 +50,7 @@ export const QuestStatus = {
 export type QuestStatus = typeof QuestStatus[keyof typeof QuestStatus];
 
 export interface DeliveryProgress {
-  currentDistance: number;
-  totalDistance: number;
-  estimatedTimeRemaining?: number;
-  startTime: Date;
-  lastUpdateTime: Date;
-  averageSpeed: number;
+  distanceToPickup: number;
+  distanceToDropoff: number;
+  lastUpdated: Date;
 } 
