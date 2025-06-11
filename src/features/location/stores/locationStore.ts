@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 import type { Location } from '../../../types';
 
 interface LocationState {
@@ -16,30 +16,37 @@ interface LocationState {
 
 export const useLocationStore = create<LocationState>()(
   devtools(
-    (set) => ({
-      currentLocation: null,
-      lastKnownLocations: [],
-      isTracking: false,
+    persist(
+      (set) => ({
+        currentLocation: null,
+        lastKnownLocations: [],
+        isTracking: false,
 
-      updateCurrentLocation: (location) => 
-        set((state) => ({
-          currentLocation: location,
-          lastKnownLocations: state.isTracking 
-            ? [...state.lastKnownLocations, location].slice(-50) // Keep last 50 locations
-            : state.lastKnownLocations
-        })),
+        updateCurrentLocation: (location) => 
+          set((state) => ({
+            currentLocation: location,
+            lastKnownLocations: state.isTracking 
+              ? [...state.lastKnownLocations, location].slice(-50) // Keep last 50 locations
+              : state.lastKnownLocations
+          })),
 
-      startTracking: () => set({ isTracking: true }),
-      
-      stopTracking: () => set({ isTracking: false }),
-      
-      addLocationToHistory: (location) =>
-        set((state) => ({
-          lastKnownLocations: [...state.lastKnownLocations, location].slice(-50)
-        })),
-    }),
-    {
-      name: 'location-store',
-    }
+        startTracking: () => set({ isTracking: true }),
+        
+        stopTracking: () => set({ isTracking: false }),
+        
+        addLocationToHistory: (location) =>
+          set((state) => ({
+            lastKnownLocations: [...state.lastKnownLocations, location].slice(-50)
+          })),
+      }),
+      {
+        name: 'location-store',
+        partialize: (state) => ({
+          isTracking: state.isTracking,
+          lastKnownLocations: state.lastKnownLocations
+        }),
+        version: 1
+      }
+    )
   )
 ); 

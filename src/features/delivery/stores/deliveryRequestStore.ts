@@ -146,29 +146,40 @@ export const useDeliveryRequestStore = create<DeliveryRequestState>()(
       },
 
       cleanupExpiredRequests: () => {
-        const now = new Date();
         set((state) => ({
-          activeRequests: state.activeRequests.filter(request => 
-            !request.expiresAt || request.expiresAt > now
-          )
+          activeRequests: state.activeRequests.filter(request => {
+            if (!request.expiresAt) return true;
+            return new Date(request.expiresAt) > new Date();
+          })
         }));
       },
 
       getActiveRequestsForLocation: (locationId: string) => {
         return get().activeRequests.filter(request => 
-          request.item.originLocationId === locationId && 
-          request.active &&
-          !request.completed
+          request.active && !request.completed
         );
       }
     }),
     {
-      name: 'delivery-witch-requests',
+      name: 'delivery-requests',
       partialize: (state) => ({
-        activeRequests: state.activeRequests.filter(request => 
-          request.active && !request.completed
-        )
-      })
+        activeRequests: state.activeRequests.map(request => ({
+          ...request,
+          createdAt: request.createdAt.toISOString(),
+          expiresAt: request.expiresAt?.toISOString()
+        }))
+      }),
+      version: 1,
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Convert ISO strings back to Date objects
+          state.activeRequests = state.activeRequests.map(request => ({
+            ...request,
+            createdAt: new Date(request.createdAt),
+            expiresAt: request.expiresAt ? new Date(request.expiresAt) : undefined
+          }));
+        }
+      }
     }
   )
 ); 

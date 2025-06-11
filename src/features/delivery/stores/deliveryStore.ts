@@ -30,6 +30,34 @@ interface DeliveryState {
   generateNewQuests: (playerLocation: Location, transportMode: TransportMode) => void;
 }
 
+// Helper function to serialize dates in objects
+const serializeDates = (obj: any): any => {
+  if (!obj) return obj;
+  const newObj = { ...obj };
+  for (const key in newObj) {
+    if (newObj[key] instanceof Date) {
+      newObj[key] = newObj[key].toISOString();
+    } else if (typeof newObj[key] === 'object') {
+      newObj[key] = serializeDates(newObj[key]);
+    }
+  }
+  return newObj;
+};
+
+// Helper function to deserialize dates in objects
+const deserializeDates = (obj: any): any => {
+  if (!obj) return obj;
+  const newObj = { ...obj };
+  for (const key in newObj) {
+    if (typeof newObj[key] === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(newObj[key])) {
+      newObj[key] = new Date(newObj[key]);
+    } else if (typeof newObj[key] === 'object') {
+      newObj[key] = deserializeDates(newObj[key]);
+    }
+  }
+  return newObj;
+};
+
 export const useDeliveryStore = create<DeliveryState>()(
   devtools(
     persist(
@@ -43,7 +71,13 @@ export const useDeliveryStore = create<DeliveryState>()(
           currentMultiplier: 1.0,
           questsToNextTier: 1,
           nextTierMultiplier: 1.2,
-          dailyQuestsCompleted: 0
+          dailyQuestsCompleted: 0,
+          streak: {
+            daysThisWeek: 0,
+            weeksThisMonth: 0,
+            weeklyBonus: 0,
+            monthlyBonus: 0
+          }
         },
 
         startQuest: (quest: Quest) => set(state => ({
@@ -187,8 +221,23 @@ export const useDeliveryStore = create<DeliveryState>()(
       {
         name: 'delivery-store',
         partialize: (state) => ({
-          completedQuests: state.completedQuests,
+          activeQuest: serializeDates(state.activeQuest),
+          availableQuests: serializeDates(state.availableQuests),
+          completedQuests: serializeDates(state.completedQuests),
+          activeDelivery: serializeDates(state.activeDelivery),
+          deliveryProgress: serializeDates(state.deliveryProgress),
+          multiplierInfo: state.multiplierInfo
         }),
+        version: 1,
+        onRehydrateStorage: () => (state) => {
+          if (state) {
+            state.activeQuest = deserializeDates(state.activeQuest);
+            state.availableQuests = deserializeDates(state.availableQuests);
+            state.completedQuests = deserializeDates(state.completedQuests);
+            state.activeDelivery = deserializeDates(state.activeDelivery);
+            state.deliveryProgress = deserializeDates(state.deliveryProgress);
+          }
+        }
       }
     )
   )

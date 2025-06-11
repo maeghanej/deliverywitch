@@ -88,11 +88,18 @@ export const useMovementStatsStore = create<MovementStatsState>()(
     }),
     {
       name: 'movement-stats',
+      // Persist all fields except functions
       partialize: (state) => ({
+        daysThisWeek: state.daysThisWeek,
         totalDistance: state.totalDistance,
+        weeklyDistance: state.weeklyDistance,
+        monthlyDistance: state.monthlyDistance,
+        currentStreak: state.currentStreak,
         bestStreak: state.bestStreak,
         lastActiveDate: state.lastActiveDate
-      })
+      }),
+      // Add version for future migrations if needed
+      version: 1
     }
   )
 ); 

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { calculateDistance } from '../../delivery/utils/distance';
 import type { Coordinates } from '../../delivery/utils/distance';
+import { useDeliveryStore } from '../../delivery/stores/deliveryStore';
+import { DeliveryStatus } from '../../delivery/types';
 import {
   LocationType,
   ProximityEventType,
@@ -33,164 +35,62 @@ interface LocationEventState {
   validatePickupDropoff: (pickupId: string, dropoffId: string) => boolean;
 }
 
-const DEFAULT_NEARBY_RADIUS = 100; // meters
 const DEFAULT_INTERACTION_RADIUS = 20; // meters
-
-export const useLocationEventStore = create<LocationEventState>()((set, get) => ({
-  activeLocations: [],
-  nearbyLocations: [],
-  currentLocation: null,
-  lastInteraction: null,
-
-  addLocation: (location: LocationPoint) => {
-    set(state => ({
-      activeLocations: [...state.activeLocations, location]
-    }));
-  },
-
-  removeLocation: (locationId: string) => {
-    set(state => ({
-      activeLocations: state.activeLocations.filter(loc => loc.id !== locationId),
-      nearbyLocations: state.nearbyLocations.filter(loc => loc.id !== locationId)
-    }));
-  },
-
-  updateLocation: (locationId: string, updates: Partial<LocationPoint>) => {
-    set(state => ({
-      activeLocations: state.activeLocations.map(loc =>
-        loc.id === locationId ? { ...loc, ...updates } : loc
-      )
-    }));
-  },
-
-  updatePlayerPosition: (coordinates: Coordinates) => {
-    const { activeLocations } = get();
-    const nearbyLocations = activeLocations.filter(location => {
-      const distance = calculateDistance(coordinates, location.coordinates);
-      
-      // Check if we've entered or exited the location's radius
-      const wasNearby = get().nearbyLocations.some(loc => loc.id === location.id);
-      const isNearby = distance <= (location.radius || DEFAULT_NEARBY_RADIUS);
-      
-      // Emit proximity events
-      if (!wasNearby && isNearby) {
-        emitProximityEvent({
-          locationId: location.id,
-          type: ProximityEventType.ENTER,
-          timestamp: Date.now(),
-          distance,
-          coordinates
-        });
-      } else if (wasNearby && !isNearby) {
-        emitProximityEvent({
-          locationId: location.id,
-          type: ProximityEventType.EXIT,
-          timestamp: Date.now(),
-          distance,
-          coordinates
-        });
-      }
-      
-      return isNearby;
-    });
-
-    set({
-      currentLocation: coordinates,
-      nearbyLocations
-    });
-  },
-
-  getNearbyLocations: (radius = DEFAULT_NEARBY_RADIUS) => {
-    const { currentLocation, activeLocations } = get();
-    if (!currentLocation) return [];
-
-    return activeLocations.filter(location => {
-      const distance = calculateDistance(currentLocation, location.coordinates);
-      return distance <= radius;
-    });
-  },
-
-  interactWithLocation: async (locationId: string) => {
-    const { currentLocation, activeLocations } = get();
-    const location = activeLocations.find(loc => loc.id === locationId);
-    
-    if (!location || !currentLocation) {
-      return {
-        success: false,
-        message: 'Location not found or player position unknown'
-      };
-    }
-
-    const distance = calculateDistance(currentLocation, location.coordinates);
-    if (distance > (location.radius || DEFAULT_INTERACTION_RADIUS)) {
-      return {
-        success: false,
-        message: 'Too far from location to interact'
-      };
-    }
-
-    // Check location requirements
-    if (location.requirements) {
-      // TODO: Implement requirement checking (quest status, level, time, weather)
-    }
-
-    // Handle interaction based on location type
-    const result = await handleLocationInteraction(location);
-    
-    // Record interaction
-    const interaction: LocationInteraction = {
-      locationId,
-      type: location.type,
-      timestamp: Date.now(),
-      result
-    };
-
-    set({ lastInteraction: interaction });
-    
-    // Emit interaction event
-    emitProximityEvent({
-      locationId,
-      type: ProximityEventType.INTERACT,
-      timestamp: Date.now(),
-      distance,
-      coordinates: currentLocation
-    });
-
-    return result;
-  },
-
-  validatePickupDropoff: (pickupId: string, dropoffId: string) => {
-    const { activeLocations, lastInteraction } = get();
-    const pickup = activeLocations.find(loc => loc.id === pickupId);
-    const dropoff = activeLocations.find(loc => loc.id === dropoffId);
-
-    if (!pickup || !dropoff) return false;
-    if (pickup.type !== LocationType.PICKUP || dropoff.type !== LocationType.DROPOFF) return false;
-
-    // Ensure we've interacted with the pickup location first
-    if (!lastInteraction || lastInteraction.locationId !== pickupId) return false;
-
-    return true;
-  }
-}));
 
 // Helper function to handle location interactions
 async function handleLocationInteraction(location: LocationPoint): Promise<InteractionResult> {
+  const deliveryStore = useDeliveryStore.getState();
+  const activeDelivery = deliveryStore.activeDelivery;
+
   switch (location.type) {
     case LocationType.PICKUP:
+      if (!activeDelivery || activeDelivery.status !== DeliveryStatus.ACCEPTED) {
+        return {
+          success: false,
+          message: 'No active delivery to pick up'
+        };
+      }
+
+      if (location.id !== activeDelivery.pickupLocation.id) {
+        return {
+          success: false,
+          message: 'This is not the correct pickup location'
+        };
+      }
+
+      // Update delivery status
+      deliveryStore.updateDeliveryStatus(activeDelivery.id, DeliveryStatus.PICKED_UP);
+
       return {
         success: true,
         message: `Picked up delivery from ${location.name}`,
-        nextLocationId: 'DROPOFF_ID' // TODO: Get actual dropoff ID
+        nextLocationId: activeDelivery.dropoffLocation.id
       };
     
     case LocationType.DROPOFF:
+      if (!activeDelivery || activeDelivery.status !== DeliveryStatus.PICKED_UP) {
+        return {
+          success: false,
+          message: 'No active delivery to drop off'
+        };
+      }
+
+      if (location.id !== activeDelivery.dropoffLocation.id) {
+        return {
+          success: false,
+          message: 'This is not the correct dropoff location'
+        };
+      }
+
+      // Complete the delivery
+      deliveryStore.updateDeliveryStatus(activeDelivery.id, DeliveryStatus.COMPLETED);
+
       return {
         success: true,
         message: `Delivered to ${location.name}`,
         rewards: [
           { type: RewardType.EXPERIENCE, amount: 100, description: 'Delivery completed' },
-          { type: RewardType.COINS, amount: 50, description: 'Delivery fee' }
+          { type: RewardType.COINS, amount: activeDelivery.reward, description: 'Delivery fee' }
         ]
       };
     
@@ -217,6 +117,105 @@ async function handleLocationInteraction(location: LocationPoint): Promise<Inter
       };
   }
 }
+
+export const useLocationEventStore = create<LocationEventState>()((set, get) => ({
+  activeLocations: [],
+  nearbyLocations: [],
+  currentLocation: null,
+  lastInteraction: null,
+
+  addLocation: (location) => set(state => ({
+    activeLocations: [...state.activeLocations, location]
+  })),
+
+  removeLocation: (locationId) => set(state => ({
+    activeLocations: state.activeLocations.filter(loc => loc.id !== locationId)
+  })),
+
+  updateLocation: (locationId, updates) => set(state => ({
+    activeLocations: state.activeLocations.map(loc =>
+      loc.id === locationId ? { ...loc, ...updates } : loc
+    )
+  })),
+
+  updatePlayerPosition: (coordinates) => {
+    const state = get();
+    const NEARBY_RADIUS = 100; // meters
+
+    // Update current location
+    set({ currentLocation: coordinates });
+
+    // Update nearby locations
+    const nearby = state.activeLocations.filter(location => {
+      const distance = calculateDistance(coordinates, location.coordinates);
+      return distance <= NEARBY_RADIUS;
+    });
+
+    set({ nearbyLocations: nearby });
+
+    // Check for proximity events
+    nearby.forEach(location => {
+      const distance = calculateDistance(coordinates, location.coordinates);
+      if (distance <= DEFAULT_INTERACTION_RADIUS) {
+        // Trigger proximity event
+        const event: ProximityEvent = {
+          type: ProximityEventType.ENTER,
+          locationId: location.id,
+          distance,
+          timestamp: Date.now(),
+          coordinates
+        };
+        // TODO: Handle proximity event
+      }
+    });
+  },
+
+  getNearbyLocations: (radius = 100) => {
+    const state = get();
+    if (!state.currentLocation) return [];
+
+    return state.activeLocations.filter(location => {
+      const distance = calculateDistance(state.currentLocation!, location.coordinates);
+      return distance <= radius;
+    });
+  },
+
+  interactWithLocation: async (locationId) => {
+    const state = get();
+    const location = state.activeLocations.find(loc => loc.id === locationId);
+    
+    if (!location) {
+      return {
+        success: false,
+        message: 'Location not found'
+      };
+    }
+
+    const result = await handleLocationInteraction(location);
+    
+    if (result.success) {
+      set({ lastInteraction: { 
+        locationId, 
+        timestamp: Date.now(),
+        type: location.type,
+        result
+      }});
+    }
+
+    return result;
+  },
+
+  validatePickupDropoff: (pickupId, dropoffId) => {
+    const state = get();
+    const pickup = state.activeLocations.find(loc => loc.id === pickupId);
+    const dropoff = state.activeLocations.find(loc => loc.id === dropoffId);
+
+    if (!pickup || !dropoff) return false;
+
+    // Add any additional validation logic here
+    return true;
+  }
+}));
 
 // Helper function to emit proximity events
 function emitProximityEvent(event: ProximityEvent) {
