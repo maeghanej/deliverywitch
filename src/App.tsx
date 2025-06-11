@@ -10,15 +10,20 @@ import { MovementValidation } from './features/movement/components/MovementValid
 import { useDeliveryStore } from './features/delivery/stores/deliveryStore'
 import { useLocationEventStore } from './features/location/stores/locationEventStore'
 import { getTestLocations } from './features/game/stores/gameStore'
+import { useGeolocation } from './features/location/hooks/useGeolocation'
 
 function App() {
-  const { isTracking, startTracking, stopTracking, currentLocation } = useLocationStore();
+  const { isTracking, startTracking, stopTracking } = useLocationStore();
   const { mode } = useTransportStore();
   const { generateNewQuests } = useDeliveryStore();
   const { addLocation, removeLocation } = useLocationEventStore();
+  const { coordinates, status } = useGeolocation();
 
   const handleStartTracking = () => {
-    if (!currentLocation || !mode) return;
+    if (!coordinates || !mode) {
+      console.error('Cannot start tracking:', { coordinates, mode });
+      return;
+    }
     
     // Clear existing locations
     useLocationEventStore.getState().activeLocations.forEach(loc => {
@@ -27,8 +32,8 @@ function App() {
 
     // Add test locations around player
     const testLocations = getTestLocations({
-      latitude: currentLocation.coordinates.latitude,
-      longitude: currentLocation.coordinates.longitude
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude
     });
     testLocations.forEach(location => {
       addLocation(location);
@@ -36,7 +41,17 @@ function App() {
 
     // Start tracking and generate quests
     startTracking();
-    generateNewQuests(currentLocation, mode);
+    generateNewQuests({
+      id: 'current',
+      name: 'Current Location',
+      type: 'CURRENT',
+      coordinates: {
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude
+      },
+      characters: [],
+      sprite: 'player'
+    }, mode);
   };
 
   return (
@@ -56,8 +71,8 @@ function App() {
             {/* Movement Validation */}
             {mode && <MovementValidation />}
             
-            {/* Only show tracking button if transport mode is selected */}
-            {mode && (
+            {/* Only show tracking button if transport mode is selected and we have coordinates */}
+            {mode && coordinates && (
               <button
                 onClick={() => isTracking ? stopTracking() : handleStartTracking()}
                 className={`

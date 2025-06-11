@@ -3,16 +3,26 @@ import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useGeolocation } from '../../location/hooks/useGeolocation';
 import { useLocationEventStore } from '../../location/stores/locationEventStore';
+import { calculateDistance } from '../../delivery/utils/distance';
 import type { LocationPoint } from '../../location/types/LocationEvents';
+import type { Feature, FeatureCollection, Point } from 'geojson';
 
 // Set your Mapbox token
 mapboxgl.accessToken = 'pk.eyJ1IjoibWFlZ2hhbmVqIiwiYSI6ImNtYXp0aGdmbzA1eTUybG9nMml5dm4yczIifQ.oZ52QvKYkwZGhigZpSCzUw';
+
+const DEFAULT_INTERACTION_RADIUS = 20; // meters
+
+interface LocationFeatureProperties {
+  id: string;
+  radius: number;
+  isInRange: boolean;
+}
 
 export const GameMap = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const playerMarker = useRef<mapboxgl.Marker | null>(null);
-  const locationMarkers = useRef<{ [key: string]: mapboxgl.Marker }>({});
+  const locationMarkers = useRef<{ [key: string]: { marker: mapboxgl.Marker, circle?: mapboxgl.Layer } }>({});
 
   const { coordinates, status } = useGeolocation();
   const nearbyLocations = useLocationEventStore(state => state.nearbyLocations);
@@ -21,29 +31,41 @@ export const GameMap = () => {
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    map.current = new mapboxgl.Map({
+    const newMap = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
       zoom: 16
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl());
+    newMap.addControl(new mapboxgl.NavigationControl());
+
+    // Add source for interaction ranges
+    newMap.on('load', () => {
+      newMap.addSource('interaction-ranges', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        } as FeatureCollection
+      });
+    });
+
+    map.current = newMap;
 
     return () => {
-      map.current?.remove();
+      newMap.remove();
       map.current = null;
     };
   }, []);
 
   // Update player position
   useEffect(() => {
-    if (!map.current || !coordinates || status !== 'success') return;
-
-    const { latitude, longitude } = coordinates;
+    const currentMap = map.current;
+    if (!currentMap || !coordinates) return;
 
     // Center map on first position
     if (!playerMarker.current) {
-      map.current.setCenter([longitude, latitude]);
+      currentMap.setCenter([coordinates.longitude, coordinates.latitude]);
     }
 
     // Create or update player marker
@@ -58,26 +80,49 @@ export const GameMap = () => {
       el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
 
       playerMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([longitude, latitude])
-        .addTo(map.current);
+        .setLngLat([coordinates.longitude, coordinates.latitude])
+        .addTo(currentMap);
     } else {
-      playerMarker.current.setLngLat([longitude, latitude]);
+      playerMarker.current.setLngLat([coordinates.longitude, coordinates.latitude]);
     }
 
     // Smooth map movement
-    map.current.easeTo({
-      center: [longitude, latitude],
+    currentMap.easeTo({
+      center: [coordinates.longitude, coordinates.latitude],
       duration: 1000
     });
-  }, [coordinates, status]);
+  }, [coordinates]);
 
-  // Update location markers
+  // Update location markers and interaction ranges
   useEffect(() => {
-    if (!map.current) return;
+    const currentMap = map.current;
+    if (!currentMap || !coordinates) return;
 
     // Remove old markers
-    Object.values(locationMarkers.current).forEach(marker => marker.remove());
+    Object.values(locationMarkers.current).forEach(({ marker }) => marker.remove());
     locationMarkers.current = {};
+
+    // Update interaction ranges source
+    const source = currentMap.getSource('interaction-ranges') as mapboxgl.GeoJSONSource;
+    if (source) {
+      const features: Feature<Point, LocationFeatureProperties>[] = nearbyLocations.map(location => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [location.coordinates.longitude, location.coordinates.latitude]
+        },
+        properties: {
+          id: location.id,
+          radius: DEFAULT_INTERACTION_RADIUS,
+          isInRange: calculateDistance(coordinates, location.coordinates) <= DEFAULT_INTERACTION_RADIUS
+        }
+      }));
+
+      source.setData({
+        type: 'FeatureCollection',
+        features
+      });
+    }
 
     // Add new markers
     nearbyLocations.forEach((location: LocationPoint) => {
@@ -94,6 +139,33 @@ export const GameMap = () => {
       el.style.fontSize = '16px';
       el.innerHTML = location.icon || '📍';
 
+      // Add interaction range circle
+      const circleId = `circle-${location.id}`;
+      if (!currentMap.getLayer(circleId)) {
+        currentMap.addLayer({
+          id: circleId,
+          type: 'circle',
+          source: 'interaction-ranges',
+          paint: {
+            'circle-radius': ['*', ['get', 'radius'], 2], // Convert meters to pixels (approximate)
+            'circle-color': [
+              'case',
+              ['get', 'isInRange'],
+              'rgba(76, 175, 80, 0.2)', // Green when in range
+              'rgba(255, 152, 0, 0.1)' // Orange when out of range
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': [
+              'case',
+              ['get', 'isInRange'],
+              'rgba(76, 175, 80, 0.5)',
+              'rgba(255, 152, 0, 0.3)'
+            ]
+          },
+          filter: ['==', ['get', 'id'], location.id]
+        });
+      }
+
       const marker = new mapboxgl.Marker(el)
         .setLngLat([location.coordinates.longitude, location.coordinates.latitude])
         .setPopup(
@@ -101,13 +173,19 @@ export const GameMap = () => {
             .setHTML(`
               <h3 class="font-bold">${location.name}</h3>
               ${location.description ? `<p>${location.description}</p>` : ''}
+              ${calculateDistance(coordinates, location.coordinates) <= DEFAULT_INTERACTION_RADIUS 
+                ? '<p class="text-green-600">In range - Click to interact!</p>' 
+                : ''}
             `)
         )
-        .addTo(map.current);
+        .addTo(currentMap);
 
-      locationMarkers.current[location.id] = marker;
+      locationMarkers.current[location.id] = { 
+        marker,
+        circle: currentMap.getLayer(circleId) as mapboxgl.Layer
+      };
     });
-  }, [nearbyLocations]);
+  }, [nearbyLocations, coordinates]);
 
   return (
     <div 

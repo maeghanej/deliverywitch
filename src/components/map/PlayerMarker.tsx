@@ -16,23 +16,41 @@ export const PlayerMarker = ({ latitude, longitude, accuracy }: PlayerMarkerProp
       longitude={longitude}
       anchor="center"
     >
-      <div className={`
-        w-6 h-6 
-        rounded-full 
-        bg-blue-500 
-        border-2 
-        border-white 
-        shadow-lg
-        ${isTracking ? 'animate-pulse' : ''}
-      `}>
+      <div className="relative">
+        {/* Accuracy circle */}
         {accuracy && (
           <div
-            className="absolute -inset-4 rounded-full bg-blue-500/20"
+            className="absolute rounded-full bg-blue-500/20"
             style={{
-              transform: `scale(${Math.min(accuracy / 20, 3)})`,
+              width: `${Math.min(accuracy * 2, 100)}px`,
+              height: `${Math.min(accuracy * 2, 100)}px`,
+              transform: 'translate(-50%, -50%)',
             }}
           />
         )}
+        
+        {/* Player dot */}
+        <div className={`
+          relative
+          w-6 h-6 
+          rounded-full 
+          bg-blue-500 
+          border-2 
+          border-white 
+          shadow-lg
+          ${isTracking ? 'animate-pulse' : ''}
+        `} />
+
+        {/* Pulsing effect */}
+        <div className={`
+          absolute 
+          top-0 
+          left-0
+          w-6 h-6 
+          rounded-full 
+          bg-blue-500/50
+          animate-ping
+        `} />
       </div>
     </Marker>
   );

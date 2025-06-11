@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import Map, { NavigationControl } from 'react-map-gl';
 import { useGeolocation } from '../../features/location/hooks/useGeolocation';
 import { PlayerMarker } from './PlayerMarker';
@@ -11,7 +11,7 @@ console.log('Mapbox token:', import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
 // Default map settings - these should come from environment variables in production
 const DEFAULT_LATITUDE = 51.0447;
 const DEFAULT_LONGITUDE = -114.0718;
-const DEFAULT_ZOOM = 13;
+const DEFAULT_ZOOM = 16;
 
 interface ViewState {
   latitude: number;
@@ -24,16 +24,26 @@ interface ViewState {
 
 export const GameMap = () => {
   const mapRef = useRef<any>(null);
-  const { latitude, longitude, accuracy, error } = useGeolocation();
+  const { coordinates, error, status } = useGeolocation();
 
   const initialViewState: ViewState = {
-    latitude: latitude || DEFAULT_LATITUDE,
-    longitude: longitude || DEFAULT_LONGITUDE,
+    latitude: coordinates?.latitude || DEFAULT_LATITUDE,
+    longitude: coordinates?.longitude || DEFAULT_LONGITUDE,
     zoom: DEFAULT_ZOOM,
     bearing: 0,
     pitch: 0,
     padding: { top: 40, bottom: 40, left: 40, right: 40 },
   };
+
+  // Update map center when location changes
+  useEffect(() => {
+    if (mapRef.current && coordinates?.latitude && coordinates?.longitude) {
+      mapRef.current.flyTo({
+        center: [coordinates.longitude, coordinates.latitude],
+        duration: 1000,
+      });
+    }
+  }, [coordinates]);
 
   const onMapLoad = useCallback(() => {
     if (mapRef.current) {
@@ -44,7 +54,7 @@ export const GameMap = () => {
   if (error) {
     return (
       <div className="h-full flex items-center justify-center bg-red-50 p-4">
-        <p className="text-red-600">Error: {error}</p>
+        <p className="text-red-600">Error: {error.message}</p>
       </div>
     );
   }
@@ -62,11 +72,11 @@ export const GameMap = () => {
         <NavigationControl position="top-right" />
         
         {/* Player Location Marker */}
-        {latitude && longitude && (
+        {coordinates?.latitude && coordinates?.longitude && (
           <PlayerMarker
-            latitude={latitude}
-            longitude={longitude}
-            accuracy={accuracy}
+            latitude={coordinates.latitude}
+            longitude={coordinates.longitude}
+            accuracy={null}
           />
         )}
 
@@ -79,9 +89,9 @@ export const GameMap = () => {
 
       {/* Debug Info - remove in production */}
       <div className="absolute bottom-4 left-4 bg-white/90 p-2 rounded shadow text-sm">
-        <p>Lat: {latitude?.toFixed(6)}</p>
-        <p>Lng: {longitude?.toFixed(6)}</p>
-        <p>Accuracy: {accuracy?.toFixed(2)}m</p>
+        <p>Lat: {coordinates?.latitude?.toFixed(6)}</p>
+        <p>Lng: {coordinates?.longitude?.toFixed(6)}</p>
+        <p>Status: {status}</p>
       </div>
     </div>
   );

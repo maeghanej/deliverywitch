@@ -37,55 +37,71 @@ export const useGeolocation = () => {
 
     setState(prev => ({ ...prev, status: 'loading' }));
 
-    // Request permission explicitly
-    navigator.permissions.query({ name: 'geolocation' }).then(permissionStatus => {
-      if (permissionStatus.state === 'denied') {
+    // Get initial position immediately
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coordinates = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        setState({
+          coordinates,
+          error: null,
+          status: 'success'
+        });
+        updatePlayerPosition(coordinates);
+      },
+      (error) => {
         setState({
           coordinates: null,
           error: {
-            code: 1,
-            message: 'Location permission denied'
+            code: error.code,
+            message: error.message
           },
           status: 'error'
         });
-        return;
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
       }
+    );
 
-      // Watch position with high accuracy for game mechanics
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const coordinates = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          };
-          setState({
-            coordinates,
-            error: null,
-            status: 'success'
-          });
-          updatePlayerPosition(coordinates);
-        },
-        (error) => {
-          setState({
-            coordinates: null,
-            error: {
-              code: error.code,
-              message: error.message
-            },
-            status: 'error'
-          });
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000, // Use cached position if less than 1 second old
-          timeout: 5000 // Time to wait for position
-        }
-      );
+    // Then watch for position updates
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const coordinates = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        setState({
+          coordinates,
+          error: null,
+          status: 'success'
+        });
+        updatePlayerPosition(coordinates);
+      },
+      (error) => {
+        setState({
+          coordinates: null,
+          error: {
+            code: error.code,
+            message: error.message
+          },
+          status: 'error'
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000, // Use cached position if less than 1 second old
+        timeout: 5000 // Time to wait for position
+      }
+    );
 
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
-    });
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, [updatePlayerPosition]);
 
   return state;
