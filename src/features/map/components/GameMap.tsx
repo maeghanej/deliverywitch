@@ -8,7 +8,8 @@ import type { LocationPoint } from '../../location/types/LocationEvents';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 
 // Set your Mapbox token
-mapboxgl.accessToken = 'pk.eyJ1IjoibWFlZ2hhbmVqIiwiYSI6ImNtYXp0aGdmbzA1eTUybG9nMml5dm4yczIifQ.oZ52QvKYkwZGhigZpSCzUw';
+const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFlZ2hhbmVqIiwiYSI6ImNtYXp0aGdmbzA1eTUybG9nMml5dm4yczIifQ.oZ52QvKYkwZGhigZpSCzUw';
+mapboxgl.accessToken = MAPBOX_TOKEN;
 
 const DEFAULT_INTERACTION_RADIUS = 20; // meters
 
@@ -34,7 +35,8 @@ export const GameMap = () => {
     const newMap = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      zoom: 16
+      zoom: 16,
+      center: coordinates ? [coordinates.longitude, coordinates.latitude] : [-122.4194, 37.7749]
     });
 
     newMap.addControl(new mapboxgl.NavigationControl());
@@ -56,7 +58,7 @@ export const GameMap = () => {
       newMap.remove();
       map.current = null;
     };
-  }, []);
+  }, [coordinates]);
 
   // Update player position
   useEffect(() => {

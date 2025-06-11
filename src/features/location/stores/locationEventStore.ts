@@ -129,11 +129,15 @@ export const useLocationEventStore = create<LocationEventState>()((set, get) => 
   })),
 
   removeLocation: (locationId) => set(state => ({
-    activeLocations: state.activeLocations.filter(loc => loc.id !== locationId)
+    activeLocations: state.activeLocations.filter(loc => loc.id !== locationId),
+    nearbyLocations: state.nearbyLocations.filter(loc => loc.id !== locationId)
   })),
 
   updateLocation: (locationId, updates) => set(state => ({
     activeLocations: state.activeLocations.map(loc =>
+      loc.id === locationId ? { ...loc, ...updates } : loc
+    ),
+    nearbyLocations: state.nearbyLocations.map(loc =>
       loc.id === locationId ? { ...loc, ...updates } : loc
     )
   })),
@@ -166,6 +170,7 @@ export const useLocationEventStore = create<LocationEventState>()((set, get) => 
           coordinates
         };
         // TODO: Handle proximity event
+        console.log('Proximity event:', event);
       }
     });
   },

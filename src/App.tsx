@@ -1,7 +1,7 @@
 import { BrowserRouter as Router } from 'react-router-dom'
 import { MantineProvider } from '@mantine/core'
 import { Navbar } from './components/layout/Navbar'
-import { GameMap } from './components/map/GameMap'
+import { GameMap } from './features/map/components/GameMap'
 import { useLocationStore } from './features/location/stores/locationStore'
 import { TransportModeSelect } from './features/transport/components/TransportModeSelect'
 import { useTransportStore } from './features/transport/stores/transportStore'
@@ -25,8 +25,12 @@ function App() {
       return;
     }
     
+    console.log('Starting tracking with:', { coordinates, mode });
+    
     // Clear existing locations
-    useLocationEventStore.getState().activeLocations.forEach(loc => {
+    const existingLocations = useLocationEventStore.getState().activeLocations;
+    console.log('Clearing existing locations:', existingLocations.length);
+    existingLocations.forEach(loc => {
       removeLocation(loc.id);
     });
 
@@ -35,12 +39,15 @@ function App() {
       latitude: coordinates.latitude,
       longitude: coordinates.longitude
     });
+    console.log('Adding test locations:', testLocations.length);
     testLocations.forEach(location => {
       addLocation(location);
     });
 
     // Start tracking and generate quests
     startTracking();
+    console.log('Started tracking');
+    
     generateNewQuests({
       id: 'current',
       name: 'Current Location',
@@ -52,6 +59,7 @@ function App() {
       characters: [],
       sprite: 'player'
     }, mode);
+    console.log('Generated new quests');
   };
 
   return (
