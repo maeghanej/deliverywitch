@@ -4,6 +4,9 @@ import { DeliveryStatus, QuestStatus } from '../types';
 import type { Quest, Delivery, DeliveryProgress } from '../types';
 import type { Location } from '../../../types';
 import { calculateDistance } from '../utils/distance';
+import { generateQuests } from '../utils/questGeneration';
+import { calculateQuestMultiplier, type QuestMultiplierInfo } from '../utils/questMultiplier';
+import type { TransportMode } from '../../transport/stores/transportStore';
 
 interface DeliveryState {
   activeQuest: Quest | null;
@@ -11,6 +14,7 @@ interface DeliveryState {
   completedQuests: Quest[];
   activeDelivery: Delivery | null;
   deliveryProgress: DeliveryProgress | null;
+  multiplierInfo: QuestMultiplierInfo;
   
   // Quest Actions
   startQuest: (quest: Quest) => void;
@@ -23,7 +27,7 @@ interface DeliveryState {
   updateDeliveryProgress: (currentLocation: Location) => void;
   
   // Quest Generation
-  generateNewQuests: (playerLocation: Location, transportMode: 'WALKING' | 'BIKING') => void;
+  generateNewQuests: (playerLocation: Location, transportMode: TransportMode) => void;
 }
 
 export const useDeliveryStore = create<DeliveryState>()(
@@ -35,6 +39,12 @@ export const useDeliveryStore = create<DeliveryState>()(
         completedQuests: [],
         activeDelivery: null,
         deliveryProgress: null,
+        multiplierInfo: {
+          currentMultiplier: 1.0,
+          questsToNextTier: 1,
+          nextTierMultiplier: 1.2,
+          dailyQuestsCompleted: 0
+        },
 
         startQuest: (quest: Quest) => set(state => ({
           activeQuest: {
@@ -49,13 +59,30 @@ export const useDeliveryStore = create<DeliveryState>()(
           const quest = state.activeQuest;
           if (!quest || quest.id !== questId) return state;
 
+          // Apply multiplier to rewards
+          const multiplierInfo = calculateQuestMultiplier(state.completedQuests);
+          const multipliedReward = {
+            ...quest.reward,
+            gold: Math.round(quest.reward.gold * multiplierInfo.currentMultiplier)
+          };
+
+          const completedQuest = {
+            ...quest,
+            status: QuestStatus.COMPLETED,
+            completedAt: new Date(),
+            reward: multipliedReward
+          };
+
+          // Update state with new multiplier info
+          const newMultiplierInfo = calculateQuestMultiplier([
+            ...state.completedQuests,
+            completedQuest
+          ]);
+
           return {
             activeQuest: null,
-            completedQuests: [...state.completedQuests, {
-              ...quest,
-              status: QuestStatus.COMPLETED,
-              completedAt: new Date()
-            }]
+            completedQuests: [...state.completedQuests, completedQuest],
+            multiplierInfo: newMultiplierInfo
           };
         }),
 
@@ -67,7 +94,7 @@ export const useDeliveryStore = create<DeliveryState>()(
             activeQuest: null,
             completedQuests: [...state.completedQuests, {
               ...quest,
-              status: QuestStatus.FAILED,
+              status: QuestStatus.COMPLETED, // We removed FAILED status
               completedAt: new Date()
             }]
           };
@@ -148,10 +175,13 @@ export const useDeliveryStore = create<DeliveryState>()(
           };
         }),
 
-        generateNewQuests: (playerLocation: Location, transportMode: 'WALKING' | 'BIKING') => {
-          // This would be implemented with your quest generation logic
-          // For now it's a placeholder
-          console.log('Generating quests for', transportMode, 'at', playerLocation);
+        generateNewQuests: (playerLocation: Location, transportMode: TransportMode) => {
+          if (!transportMode) return;
+          
+          const newQuests = generateQuests(playerLocation, transportMode);
+          set(state => ({
+            availableQuests: [...state.availableQuests, ...newQuests]
+          }));
         }
       }),
       {

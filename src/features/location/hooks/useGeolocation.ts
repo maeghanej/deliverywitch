@@ -1,91 +1,92 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useLocationStore } from '../stores/locationStore';
-import type { LocationType } from '../../../types';
+import { useState, useEffect } from 'react';
+import type { Coordinates } from '../../delivery/utils/distance';
+import { useLocationEventStore } from '../stores/locationEventStore';
 
 interface GeolocationState {
-  latitude: number | null;
-  longitude: number | null;
-  accuracy: number | null;
-  speed: number | null;
-  heading: number | null;
-  error: string | null;
-  timestamp: number | null;
+  coordinates: Coordinates | null;
+  error: GeolocationError | null;
+  status: 'idle' | 'loading' | 'success' | 'error';
 }
 
-const defaultState: GeolocationState = {
-  latitude: null,
-  longitude: null,
-  accuracy: null,
-  speed: null,
-  heading: null,
-  error: null,
-  timestamp: null,
+type GeolocationError = {
+  code: number;
+  message: string;
 };
 
-export const useGeolocation = (options: PositionOptions = {}) => {
-  const [state, setState] = useState<GeolocationState>(defaultState);
-  const { updateCurrentLocation, isTracking } = useLocationStore();
+export const useGeolocation = () => {
+  const [state, setState] = useState<GeolocationState>({
+    coordinates: null,
+    error: null,
+    status: 'idle'
+  });
 
-  const onEvent = useCallback(
-    (event: GeolocationPosition) => {
-      const { latitude, longitude, accuracy, speed, heading } = event.coords;
-      
-      setState({
-        latitude,
-        longitude,
-        accuracy,
-        speed,
-        heading,
-        timestamp: event.timestamp,
-        error: null,
-      });
-
-      if (isTracking) {
-        updateCurrentLocation({
-          id: 'current',
-          name: 'Current Location',
-          type: 'CURRENT' as LocationType,
-          coordinates: { latitude, longitude },
-          characters: [],
-          sprite: ''
-        });
-      }
-    },
-    [isTracking, updateCurrentLocation]
-  );
-
-  const onError = useCallback((error: GeolocationPositionError) => {
-    setState(prev => ({
-      ...prev,
-      error: error.message,
-    }));
-  }, []);
+  const updatePlayerPosition = useLocationEventStore(state => state.updatePlayerPosition);
 
   useEffect(() => {
-    const defaultOptions: PositionOptions = {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 5000,
-    };
-
     if (!navigator.geolocation) {
-      setState(prev => ({
-        ...prev,
-        error: 'Geolocation is not supported',
-      }));
+      setState({
+        coordinates: null,
+        error: {
+          code: 0,
+          message: 'Geolocation is not supported by your browser'
+        },
+        status: 'error'
+      });
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      onEvent,
-      onError,
-      { ...defaultOptions, ...options }
-    );
+    setState(prev => ({ ...prev, status: 'loading' }));
 
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, [onEvent, onError, options]);
+    // Request permission explicitly
+    navigator.permissions.query({ name: 'geolocation' }).then(permissionStatus => {
+      if (permissionStatus.state === 'denied') {
+        setState({
+          coordinates: null,
+          error: {
+            code: 1,
+            message: 'Location permission denied'
+          },
+          status: 'error'
+        });
+        return;
+      }
+
+      // Watch position with high accuracy for game mechanics
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const coordinates = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          setState({
+            coordinates,
+            error: null,
+            status: 'success'
+          });
+          updatePlayerPosition(coordinates);
+        },
+        (error) => {
+          setState({
+            coordinates: null,
+            error: {
+              code: error.code,
+              message: error.message
+            },
+            status: 'error'
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000, // Use cached position if less than 1 second old
+          timeout: 5000 // Time to wait for position
+        }
+      );
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
+    });
+  }, [updatePlayerPosition]);
 
   return state;
 }; 

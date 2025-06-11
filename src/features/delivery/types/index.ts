@@ -31,20 +31,22 @@ export interface QuestReward {
   items?: Item[];
 }
 
-export enum DeliveryStatus {
-  AVAILABLE = 'AVAILABLE',
-  ACCEPTED = 'ACCEPTED',
-  PICKED_UP = 'PICKED_UP',
-  COMPLETED = 'COMPLETED',
+export const DeliveryStatus = {
+  AVAILABLE: 'AVAILABLE',
+  ACCEPTED: 'ACCEPTED',
+  PICKED_UP: 'PICKED_UP',
+  COMPLETED: 'COMPLETED'
+} as const;
 
-}
+export type DeliveryStatus = typeof DeliveryStatus[keyof typeof DeliveryStatus];
 
-export enum QuestStatus {
-  AVAILABLE = 'AVAILABLE',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
+export const QuestStatus = {
+  AVAILABLE: 'AVAILABLE',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED'
+} as const;
 
-}
+export type QuestStatus = typeof QuestStatus[keyof typeof QuestStatus];
 
 export interface DeliveryProgress {
   currentDistance: number;

@@ -8,34 +8,29 @@ export interface Character {
   requiredItems: Item[];
 }
 
+export interface Coordinates {
+  latitude: number;
+  longitude: number;
+}
+
+export type LocationType = 'CURRENT' | 'DELIVERY' | 'QUEST' | 'CHARACTER';
+
 export interface Location {
   id: string;
   name: string;
   type: LocationType;
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
-  characters: Character[];
+  coordinates: Coordinates;
+  characters: string[]; // character IDs
   sprite: string;
-}
-
-export enum LocationType {
-  SHOP = 'SHOP',
-  HOME = 'HOME',
-  MARKET = 'MARKET',
-  CAFE = 'CAFE',
-  LIBRARY = 'LIBRARY',
-  CURRENT = 'CURRENT',
 }
 
 export interface Item {
   id: string;
   name: string;
-  description: string;
+  type: 'QUEST_ITEM' | 'REWARD_ITEM' | 'COLLECTIBLE';
   value: number;
-  sprite: string;
-  season?: Season;
+  description?: string;
+  sprite?: string;
 }
 
 export interface Player {
