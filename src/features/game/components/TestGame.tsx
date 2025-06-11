@@ -4,6 +4,7 @@ import { useLocationEventStore } from '../../location/stores/locationEventStore'
 import { useGameStore, getTestLocations } from '../stores/gameStore';
 import { NearbyLocations } from '../../location/components/NearbyLocations';
 import { MovementStats } from '../../movement/components/MovementStats';
+import { GameMap } from '../../map/components/GameMap';
 
 export const TestGame = () => {
   const { coordinates, error, status } = useGeolocation();
@@ -71,28 +72,34 @@ export const TestGame = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Player Stats */}
-      <div className="fixed top-4 left-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
-        <h2 className="text-lg font-semibold mb-2">Player Stats</h2>
-        <div className="space-y-1">
-          <div>Level: {player.level}</div>
-          <div>XP: {player.experience}</div>
-          <div>Coins: {player.coins}</div>
+    <div className="relative min-h-screen">
+      {/* Map */}
+      <GameMap />
+
+      {/* UI Overlay */}
+      <div className="relative z-10">
+        {/* Player Stats */}
+        <div className="fixed top-4 left-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+          <h2 className="text-lg font-semibold mb-2">Player Stats</h2>
+          <div className="space-y-1">
+            <div>Level: {player.level}</div>
+            <div>XP: {player.experience}</div>
+            <div>Coins: {player.coins}</div>
+          </div>
         </div>
+
+        {/* Debug Coordinates */}
+        <div className="fixed top-4 right-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg text-sm font-mono">
+          <div>Lat: {coordinates.latitude.toFixed(6)}</div>
+          <div>Lng: {coordinates.longitude.toFixed(6)}</div>
+        </div>
+
+        {/* Movement Stats */}
+        <MovementStats />
+
+        {/* Nearby Locations */}
+        <NearbyLocations />
       </div>
-
-      {/* Debug Coordinates */}
-      <div className="fixed top-4 right-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg text-sm font-mono">
-        <div>Lat: {coordinates.latitude.toFixed(6)}</div>
-        <div>Lng: {coordinates.longitude.toFixed(6)}</div>
-      </div>
-
-      {/* Movement Stats */}
-      <MovementStats />
-
-      {/* Nearby Locations */}
-      <NearbyLocations />
     </div>
   );
 }; 

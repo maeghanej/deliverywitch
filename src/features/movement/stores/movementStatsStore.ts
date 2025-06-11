@@ -1,217 +1,97 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { MovementStats, SessionStats, DailyStats, AllTimeStats } from '../types/MovementStats';
 import { format } from 'date-fns';
 
-type TransportMode = 'WALKING' | 'BIKING';
-
 interface MovementStatsState {
-  stats: MovementStats;
+  daysThisWeek: number[];
+  totalDistance: number;
+  weeklyDistance: number;
+  monthlyDistance: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastActiveDate: string | null;
   
-  // Session actions
-  startSession: (mode: TransportMode) => void;
-  endSession: () => void;
-  updateSessionStats: (distance: number, speed: number, latitude: number, longitude: number) => void;
-  pauseSession: () => void;
-  resumeSession: () => void;
-  
-  // Stats actions
-  addDeliveryCompleted: () => void;
-  checkAchievements: () => void;
+  // Actions
+  addDistance: (distance: number) => void;
+  updateStreak: () => void;
+  resetStats: () => void;
 }
 
-const createEmptySessionStats = (mode: TransportMode): SessionStats => ({
-  startTime: Date.now(),
-  endTime: null,
-  totalDistance: 0,
-  activeTime: 0,
-  pauseTime: 0,
-  averageSpeed: 0,
-  topSpeed: 0,
-  currentSpeed: 0,
-  speedHistory: [],
-  transportMode: mode
-});
+const getCurrentDate = () => format(new Date(), 'yyyy-MM-dd');
 
-const createEmptyDailyStats = (): DailyStats => ({
-  date: format(new Date(), 'yyyy-MM-dd'),
+const createEmptyStats = () => ({
+  daysThisWeek: Array(7).fill(0), // Initialize with zeros for each day
   totalDistance: 0,
-  activeTime: 0,
-  deliveriesCompleted: 0,
-  byTransportMode: {
-    WALKING: { distance: 0, activeTime: 0 },
-    BIKING: { distance: 0, activeTime: 0 }
-  }
-});
-
-const createEmptyAllTimeStats = (): AllTimeStats => ({
-  totalDistance: 0,
-  totalActiveTime: 0,
-  totalDeliveries: 0,
-  byTransportMode: {
-    WALKING: { distance: 0, activeTime: 0, deliveries: 0 },
-    BIKING: { distance: 0, activeTime: 0, deliveries: 0 }
-  },
-  achievements: []
+  weeklyDistance: 0,
+  monthlyDistance: 0,
+  currentStreak: 0,
+  bestStreak: 0,
+  lastActiveDate: null
 });
 
 export const useMovementStatsStore = create<MovementStatsState>()(
   persist(
     (set, get) => ({
-      stats: {
-        session: createEmptySessionStats('WALKING'),
-        daily: createEmptyDailyStats(),
-        allTime: createEmptyAllTimeStats()
-      },
+      ...createEmptyStats(),
 
-      startSession: (mode: TransportMode) => {
-        const today = format(new Date(), 'yyyy-MM-dd');
-        set(state => ({
-          stats: {
-            ...state.stats,
-            session: createEmptySessionStats(mode),
-            // Reset daily stats if it's a new day
-            daily: state.stats.daily.date === today 
-              ? state.stats.daily 
-              : createEmptyDailyStats()
-          }
-        }));
-      },
+      addDistance: (distance: number) => set(state => {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const newDaysThisWeek = [...state.daysThisWeek];
+        newDaysThisWeek[dayOfWeek] += distance;
 
-      endSession: () => {
-        const { stats } = get();
-        const { session, daily, allTime } = stats;
-        const mode = session.transportMode;
-
-        // Update daily stats
-        const updatedDaily: DailyStats = {
-          ...daily,
-          totalDistance: daily.totalDistance + session.totalDistance,
-          activeTime: daily.activeTime + session.activeTime,
-          byTransportMode: {
-            ...daily.byTransportMode,
-            [mode]: {
-              distance: daily.byTransportMode[mode].distance + session.totalDistance,
-              activeTime: daily.byTransportMode[mode].activeTime + session.activeTime
-            }
-          }
+        return {
+          daysThisWeek: newDaysThisWeek,
+          totalDistance: state.totalDistance + distance,
+          weeklyDistance: state.weeklyDistance + distance,
+          monthlyDistance: state.monthlyDistance + distance,
+          lastActiveDate: getCurrentDate()
         };
+      }),
 
-        // Update all-time stats
-        const updatedAllTime: AllTimeStats = {
-          ...allTime,
-          totalDistance: allTime.totalDistance + session.totalDistance,
-          totalActiveTime: allTime.totalActiveTime + session.activeTime,
-          byTransportMode: {
-            ...allTime.byTransportMode,
-            [mode]: {
-              distance: allTime.byTransportMode[mode].distance + session.totalDistance,
-              activeTime: allTime.byTransportMode[mode].activeTime + session.activeTime,
-              deliveries: allTime.byTransportMode[mode].deliveries
-            }
-          }
-        };
+      updateStreak: () => set(state => {
+        const today = getCurrentDate();
+        if (!state.lastActiveDate) {
+          return {
+            currentStreak: 1,
+            bestStreak: 1,
+            lastActiveDate: today
+          };
+        }
 
-        set(state => ({
-          stats: {
-            ...state.stats,
-            session: {
-              ...session,
-              endTime: Date.now()
-            },
-            daily: updatedDaily,
-            allTime: updatedAllTime
-          }
-        }));
-      },
+        const lastActive = new Date(state.lastActiveDate);
+        const currentDate = new Date(today);
+        const daysDiff = Math.floor((currentDate.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24));
 
-      updateSessionStats: (distance: number, speed: number, latitude: number, longitude: number) => {
-        const { stats } = get();
-        const { session } = stats;
-        const now = Date.now();
-        const timeDiff = (now - session.startTime) / 1000; // seconds
+        if (daysDiff === 1) {
+          // Consecutive day
+          const newStreak = state.currentStreak + 1;
+          return {
+            currentStreak: newStreak,
+            bestStreak: Math.max(newStreak, state.bestStreak),
+            lastActiveDate: today
+          };
+        } else if (daysDiff === 0) {
+          // Same day, no streak change
+          return state;
+        } else {
+          // Streak broken
+          return {
+            currentStreak: 1,
+            bestStreak: state.bestStreak,
+            lastActiveDate: today
+          };
+        }
+      }),
 
-        const speedRecord = {
-          timestamp: now,
-          speed,
-          latitude,
-          longitude
-        };
-
-        set(state => ({
-          stats: {
-            ...state.stats,
-            session: {
-              ...session,
-              totalDistance: session.totalDistance + distance,
-              activeTime: timeDiff - session.pauseTime,
-              currentSpeed: speed,
-              averageSpeed: (session.totalDistance + distance) / (timeDiff - session.pauseTime),
-              topSpeed: Math.max(session.topSpeed, speed),
-              speedHistory: [...session.speedHistory, speedRecord].slice(-100) // Keep last 100 records
-            }
-          }
-        }));
-      },
-
-      pauseSession: () => {
-        set(state => ({
-          stats: {
-            ...state.stats,
-            session: {
-              ...state.stats.session,
-              pauseTime: state.stats.session.pauseTime + 
-                (Date.now() - (state.stats.session.startTime + state.stats.session.activeTime * 1000)) / 1000
-            }
-          }
-        }));
-      },
-
-      resumeSession: () => {
-        // No need to do anything special on resume, the next updateSessionStats will handle it
-      },
-
-      addDeliveryCompleted: () => {
-        const { stats } = get();
-        const { session, daily, allTime } = stats;
-        const mode = session.transportMode;
-
-        set(state => ({
-          stats: {
-            ...state.stats,
-            daily: {
-              ...daily,
-              deliveriesCompleted: daily.deliveriesCompleted + 1
-            },
-            allTime: {
-              ...allTime,
-              totalDeliveries: allTime.totalDeliveries + 1,
-              byTransportMode: {
-                ...allTime.byTransportMode,
-                [mode]: {
-                  ...allTime.byTransportMode[mode],
-                  deliveries: allTime.byTransportMode[mode].deliveries + 1
-                }
-              }
-            }
-          }
-        }));
-
-        get().checkAchievements();
-      },
-
-      checkAchievements: () => {
-        // TODO: Implement achievement checks based on stats
-        // This will check for distance milestones, speed records, delivery counts, etc.
-      }
+      resetStats: () => set(createEmptyStats)
     }),
     {
       name: 'movement-stats',
       partialize: (state) => ({
-        stats: {
-          daily: state.stats.daily,
-          allTime: state.stats.allTime
-        }
+        totalDistance: state.totalDistance,
+        bestStreak: state.bestStreak,
+        lastActiveDate: state.lastActiveDate
       })
     }
   )
