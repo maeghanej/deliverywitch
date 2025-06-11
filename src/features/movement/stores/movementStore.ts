@@ -12,9 +12,16 @@ interface MovementState {
   // Actions
   addMovementPoint: (point: MovementDataPoint, declaredMode: TransportMode) => void;
   clearMovementHistory: () => void;
+  initializeValidation: (mode: TransportMode) => void;
 }
 
 const MAX_HISTORY_POINTS = 50; // Keep last 50 points for pattern detection
+
+const createInitialValidationResult = (mode: TransportMode): MovementValidationResult => ({
+  isValid: true,
+  detectedMode: mode,
+  issues: []
+});
 
 export const useMovementStore = create<MovementState>()(
   devtools(
@@ -22,6 +29,11 @@ export const useMovementStore = create<MovementState>()(
       recentPoints: [],
       validationResult: null,
       isValidMovement: true,
+
+      initializeValidation: (mode: TransportMode) => set({
+        validationResult: createInitialValidationResult(mode),
+        isValidMovement: true
+      }),
 
       addMovementPoint: (point: MovementDataPoint, declaredMode: TransportMode) => {
         const recentPoints = get().recentPoints;

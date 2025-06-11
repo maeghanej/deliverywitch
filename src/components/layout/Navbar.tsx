@@ -1,18 +1,18 @@
 import { Link } from 'react-router-dom';
 import { useLocationStore } from '../../features/location/stores/locationStore';
 import { useTransportStore } from '../../features/transport/stores/transportStore';
+import { useMovementStore } from '../../features/movement/stores/movementStore';
 import type { TransportMode } from '../../features/transport/stores/transportStore';
 
 export const Navbar = () => {
   const isTracking = useLocationStore(state => state.isTracking);
   const { mode, setMode } = useTransportStore();
+  const initializeValidation = useMovementStore(state => state.initializeValidation);
 
   const toggleTransportMode = () => {
-    if (mode === 'WALKING') {
-      setMode('BIKING');
-    } else if (mode === 'BIKING') {
-      setMode('WALKING');
-    }
+    const newMode: TransportMode = mode === 'WALKING' ? 'BIKING' : 'WALKING';
+    setMode(newMode);
+    initializeValidation(newMode);
   };
 
   return (

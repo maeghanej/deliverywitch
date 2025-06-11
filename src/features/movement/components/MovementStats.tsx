@@ -3,13 +3,20 @@ import { formatDistance } from '../../delivery/utils/distance';
 
 export const MovementStats = () => {
   const {
-    daysThisWeek,
-    totalDistance,
-    weeklyDistance,
-    monthlyDistance,
-    currentStreak,
-    bestStreak
-  } = useMovementStatsStore();
+    daysThisWeek = Array(7).fill(0),
+    totalDistance = 0,
+    weeklyDistance = 0,
+    monthlyDistance = 0,
+    currentStreak = 0,
+    bestStreak = 0
+  } = useMovementStatsStore(state => ({
+    daysThisWeek: state.daysThisWeek || Array(7).fill(0),
+    totalDistance: state.totalDistance || 0,
+    weeklyDistance: state.weeklyDistance || 0,
+    monthlyDistance: state.monthlyDistance || 0,
+    currentStreak: state.currentStreak || 0,
+    bestStreak: state.bestStreak || 0
+  }));
 
   return (
     <div className="fixed top-20 right-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-sm">

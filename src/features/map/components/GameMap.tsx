@@ -1,3 +1,4 @@
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useGeolocation } from '../../location/hooks/useGeolocation';

@@ -1,10 +1,17 @@
 import { useTransportStore } from '../stores/transportStore';
+import { useMovementStore } from '../../movement/stores/movementStore';
 import type { TransportMode } from '../stores/transportStore';
 
 export const TransportModeSelect = () => {
   const { mode, setMode } = useTransportStore();
+  const initializeValidation = useMovementStore(state => state.initializeValidation);
 
   if (mode) return null; // Don't show if mode is already selected
+
+  const handleModeSelect = (selectedMode: TransportMode) => {
+    setMode(selectedMode);
+    initializeValidation(selectedMode);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -15,7 +22,7 @@ export const TransportModeSelect = () => {
         
         <div className="grid grid-cols-2 gap-4">
           <button
-            onClick={() => setMode('WALKING')}
+            onClick={() => handleModeSelect('WALKING')}
             className="flex flex-col items-center justify-center p-4 bg-primary/10 hover:bg-primary/20 
                      rounded-lg transition-colors border-2 border-transparent hover:border-primary"
           >
@@ -24,7 +31,7 @@ export const TransportModeSelect = () => {
           </button>
 
           <button
-            onClick={() => setMode('BIKING')}
+            onClick={() => handleModeSelect('BIKING')}
             className="flex flex-col items-center justify-center p-4 bg-primary/10 hover:bg-primary/20 
                      rounded-lg transition-colors border-2 border-transparent hover:border-primary"
           >
