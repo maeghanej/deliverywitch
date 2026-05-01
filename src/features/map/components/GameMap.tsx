@@ -7,11 +7,9 @@ import { calculateDistance } from '../../delivery/utils/distance';
 import type { LocationPoint } from '../../location/types/LocationEvents';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 
-// Set your Mapbox token
-const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFlZ2hhbmVqIiwiYSI6ImNtYXp0aGdmbzA1eTUybG9nMml5dm4yczIifQ.oZ52QvKYkwZGhigZpSCzUw';
-mapboxgl.accessToken = MAPBOX_TOKEN;
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
-const DEFAULT_INTERACTION_RADIUS = 20; // meters
+const DEFAULT_INTERACTION_RADIUS = 20; // meter
 
 interface LocationFeatureProperties {
   id: string;
